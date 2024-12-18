@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  mongo1:
+    image: mongo:5
+    container_name: mongo1
+    networks:
+      - mongoCluster
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--replSet", "myReplicaSet", "--bind_ip", "localhost,mongo1"]
+    volumes:
+      - ./mongo1-data:/data/db
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - MONGO_DB=${MONGO_DB}
+      - MONGO_COLLECTION=${MONGO_COLLECTION}
+
+  mongo2:
+    image: mongo:5
+    container_name: mongo2
+    networks:
+      - mongoCluster
+    ports:
+      - "27018:27017"
+    command: ["mongod", "--replSet", "myReplicaSet", "--bind_ip", "localhost,mongo2"]
+    volumes:
+      - ./mongo2-data:/data/db
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - MONGO_DB=${MONGO_DB}
+      - MONGO_COLLECTION=${MONGO_COLLECTION}
+
+  mongo3:
+    image: mongo:5
+    container_name: mongo3
+    networks:
+      - mongoCluster
+    ports:
+      - "27019:27017"
+    command: ["mongod", "--replSet", "myReplicaSet", "--bind_ip", "localhost,mongo3"]
+    volumes:
+      - ./mongo3-data:/data/db
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - MONGO_DB=${MONGO_DB}
+      - MONGO_COLLECTION=${MONGO_COLLECTION}
+
+  mongo-init:
+    image: mongo:5
+    container_name: mongo-init
+    networks:
+      - mongoCluster
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    entrypoint: >
+      sh -c "
+        sleep 10;
+        mongo --host mongo1 --eval '
+          rs.initiate({
+            _id: \"myReplicaSet\",
+            members: [
+              {_id: 0, host: \"mongo1:27017\"},
+              {_id: 1, host: \"mongo2:27017\"},
+              {_id: 2, host: \"mongo3:27017\"}
+            ]
+          })
+        '"
+  yolov5:
+    image: guymeltzer/yolo5:1.0.14
+    container_name: yolov5-app
+    ports:
+      - "8081:8081"
+    environment:
+      - BUCKET_NAME=guy-polybot-docker-bucket
+      - MONGO_URI=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=myReplicaSet
+      - MONGO_DB=default_db
+      - MONGO_COLLECTION=predictions
+    networks:
+      - mongoCluster
+
+  polybot-service:
+    image: guymeltzer/polybot:1.0.14
+    container_name: polybot-service
+    ports:
+      - "8443:8443"  # Expose Flask app port
+    environment:
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      TELEGRAM_APP_URL: ${TELEGRAM_APP_URL}
+      BUCKET_NAME: ${BUCKET_NAME}
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY}
+      AWS_SECRET_KEY: ${AWS_SECRET_KEY}
+    volumes:
+      - ~/.aws:/root/.aws
+    depends_on:
+      - yolov5
+    networks:
+      - mongoCluster
+
+
+networks:
+  mongoCluster:
+    driver: bridge
+
+volumes:
+  mongo1-data:
+  mongo2-data:
+  mongo3-data:

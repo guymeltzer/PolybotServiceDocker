@@ -1,3 +1,8 @@
 flask
 pyyaml
 loguru
+boto3
+pymongo
+torch
+ultralytics
+yolov5

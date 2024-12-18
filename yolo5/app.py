@@ -1,36 +1,50 @@
 import time
 from pathlib import Path
-from flask import Flask, request
+from flask import Flask, request, jsonify  # Import jsonify for proper JSON responses
 from detect import run
 import uuid
 import yaml
 from loguru import logger
 import os
+import boto3
+from pymongo import MongoClient
 
 images_bucket = os.environ['BUCKET_NAME']
+mongo_uri = os.environ['MONGO_URI']  # MongoDB connection URI
+db_name = os.environ.get('MONGO_DB', 'default_db')  # Default to 'default_db' if no environment variable is set
+collection_name = os.environ.get('MONGO_COLLECTION', 'predictions')  # Default collection name
+
+s3_client = boto3.client('s3')
+mongo_client = MongoClient(mongo_uri)
+db = mongo_client[db_name]
+collection = db[collection_name]
 
 with open("data/coco128.yaml", "r") as stream:
     names = yaml.safe_load(stream)['names']
 
 app = Flask(__name__)
 
+
 @app.route('/predict', methods=['POST'])
 def predict():
-    # Generates a UUID for this current prediction HTTP request. This id can be used as a reference in logs to identify and track individual prediction requests.
     prediction_id = str(uuid.uuid4())
-
     logger.info(f'prediction: {prediction_id}. start processing')
 
-    # Receives a URL parameter representing the image to download from S3
-    img_name = request.args.get('imgName')
+    img_name = request.json.get('imgName')  # Changed to get from JSON body instead of query args
+    if not img_name:
+        return jsonify({"error": "Missing imgName parameter"}), 400  # Return 400 if imgName is missing
 
-    # TODO download img_name from S3, store the local image path in the original_img_path variable.
-    #  The bucket name is provided as an env var BUCKET_NAME.
-    original_img_path = ...
+    original_img_path = f'static/data/{prediction_id}/{img_name}'
+    os.makedirs(os.path.dirname(original_img_path), exist_ok=True)
 
-    logger.info(f'prediction: {prediction_id}/{original_img_path}. Download img completed')
+    try:
+        # Download image from S3
+        s3_client.download_file(images_bucket, img_name, original_img_path)
+        logger.info(f'prediction: {prediction_id}/{original_img_path}. Download img completed')
+    except Exception as e:
+        logger.error(f"Error downloading file from S3: {e}")
+        return jsonify({"error": "Failed to download image from S3"}), 500
 
-    # Predicts the objects in the image
     run(
         weights='yolov5s.pt',
         data='data/coco128.yaml',
@@ -40,16 +54,16 @@ def predict():
         save_txt=True
     )
 
-    logger.info(f'prediction: {prediction_id}/{original_img_path}. done')
+    pred_dir = f'static/data/{prediction_id}'
+    pred_summary_path = Path(f'{pred_dir}/labels/{img_name.split(".")[0]}.txt')
+    logger.info(f'YOLOv5 finished. Checking directory: {os.path.dirname(pred_summary_path)}')
+    logger.info(f'Files in directory: {os.listdir(os.path.dirname(pred_summary_path))}')
 
-    # This is the path for the predicted image with labels
-    # The predicted image typically includes bounding boxes drawn around the detected objects, along with class labels and possibly confidence scores.
-    predicted_img_path = Path(f'static/data/{prediction_id}/{original_img_path}')
+    predicted_img_path = Path(f'{pred_dir}/{img_name}')
+    predicted_s3_key = f'predictions/{prediction_id}/{img_name}'
+    s3_client.upload_file(str(predicted_img_path), images_bucket, predicted_s3_key)
 
-    # TODO Uploads the predicted image (predicted_img_path) to S3 (be careful not to override the original image).
-
-    # Parse prediction labels and create a summary
-    pred_summary_path = Path(f'static/data/{prediction_id}/labels/{original_img_path.split(".")[0]}.txt')
+    logger.info(f"Looking for label file at: {pred_summary_path}")
     if pred_summary_path.exists():
         with open(pred_summary_path) as f:
             labels = f.read().splitlines()
@@ -64,19 +78,35 @@ def predict():
 
         logger.info(f'prediction: {prediction_id}/{original_img_path}. prediction summary:\n\n{labels}')
 
+        # Format the response as needed
         prediction_summary = {
-            'prediction_id': prediction_id,
-            'original_img_path': original_img_path,
-            'predicted_img_path': predicted_img_path,
+            '_id': str(uuid.uuid4()),  # Unique prediction ID
             'labels': labels,
+            'image_paths': {
+                'original': original_img_path,
+                'predicted': predicted_s3_key
+            },
+            'prediction_id': prediction_id,
             'time': time.time()
         }
 
-        # TODO store the prediction_summary in MongoDB
+        # Insert summary into MongoDB
+        collection.insert_one(prediction_summary)
 
-        return prediction_summary
+        json_serializable_summary = {
+            **prediction_summary,
+            '_id': str(prediction_summary['_id']),  # Convert ObjectId to string
+            'time': float(prediction_summary['time'])
+        }
+
+        return jsonify(json_serializable_summary)
     else:
-        return f'prediction: {prediction_id}/{original_img_path}. prediction result not found', 404
+        logger.error(f'Label file not found at {pred_summary_path}')
+        return jsonify({
+            'error': 'Prediction result not found',
+            'prediction_id': prediction_id,
+            'original_img_path': original_img_path
+        }), 404
 
 
 if __name__ == "__main__":
