@@ -6,28 +6,24 @@ import requests
 from telebot.types import InputFile
 import boto3
 
-AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY')
-AWS_SECRET_KEY = os.getenv('AWS_SECRET_KEY')
-print(f"AWS_ACCESS_KEY: {AWS_ACCESS_KEY}")
-print(f"AWS_SECRET_KEY: {AWS_SECRET_KEY}")
-
 class ObjectDetectionBot:
     def __init__(self, token, telegram_chat_url, s3_bucket_name, s3_client):
         self.telegram_bot_client = telebot.TeleBot(token)
         self.s3_bucket_name = s3_bucket_name
         self.s3_client = s3_client
 
-        # Initialize the boto3 client with optional explicit credentials
-        self.s3_client = boto3.client(
-            's3',
-            aws_access_key_id=os.getenv('AWS_ACCESS_KEY'),
-            aws_secret_access_key=os.getenv('AWS_SECRET_KEY'),
-            region_name='eu-north-1'  # Ensure you're using the correct AWS region
-        )
+        self.s3_client = boto3.client('s3', region_name='eu-north-1')  # IAM Role handles authentication
+
+        # Get the NGROK URL from environment variables
+        ngrok_url = os.getenv('TELEGRAM_APP_URL')
+
+        if not ngrok_url:
+            raise ValueError("NGROK URL (TELEGRAM_APP_URL) is missing in the .env file")
+
         # Remove any existing webhooks and set a new webhook URL
         self.telegram_bot_client.remove_webhook()
         time.sleep(0.5)
-        self.telegram_bot_client.set_webhook(url=f'https://e104-46-117-204-122.ngrok-free.app/{token}/', timeout=60)
+        self.telegram_bot_client.set_webhook(url=f'{ngrok_url}/{token}/', timeout=60)
 
         logger.info(f'Telegram Bot information\n\n{self.telegram_bot_client.get_me()}')
 
@@ -72,6 +68,9 @@ class ObjectDetectionBot:
         return s3_url
 
     def get_yolo5_results(self, img_name):
+        if not isinstance(img_name, str) or not img_name.endswith(('.jpg', '.png')):
+            logger.error(f"Invalid image name: {img_name}")
+            return None
         """Sends an HTTP request to the yolo5 service and returns the predictions."""
         try:
             # Send imgName to YOLOv5 service

@@ -68,8 +68,9 @@ services:
             ]
           })
         '"
+
   yolov5:
-    image: guymeltzer/yolo5:1.0.14
+    image: guymeltzer/yolo5:1.0.22
     container_name: yolov5-app
     ports:
       - "8081:8081"
@@ -82,18 +83,20 @@ services:
       - mongoCluster
 
   polybot-service:
-    image: guymeltzer/polybot:1.0.14
+    image: guymeltzer/polybot:1.0.21
     container_name: polybot-service
     ports:
       - "8443:8443"  # Expose Flask app port
     environment:
-      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      MONGO_URI: mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=myReplicaSet
       TELEGRAM_APP_URL: ${TELEGRAM_APP_URL}
       BUCKET_NAME: ${BUCKET_NAME}
-      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY}
-      AWS_SECRET_KEY: ${AWS_SECRET_KEY}
+
+
     volumes:
       - ~/.aws:/root/.aws
+      - ./telegram_token.txt:/run/secrets/telegram_token  # Mount the token file securely
+
     depends_on:
       - yolov5
     networks:

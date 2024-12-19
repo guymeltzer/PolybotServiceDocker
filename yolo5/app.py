@@ -9,6 +9,7 @@ import os
 import boto3
 from pymongo import MongoClient
 
+yolo_endpoint = "http://yolov5:8081/predict"
 images_bucket = os.environ['BUCKET_NAME']
 mongo_uri = os.environ['MONGO_URI']  # MongoDB connection URI
 db_name = os.environ.get('MONGO_DB', 'default_db')  # Default to 'default_db' if no environment variable is set
@@ -54,10 +55,18 @@ def predict():
         save_txt=True
     )
 
-    pred_dir = f'static/data/{prediction_id}'
+    pred_dir = f'static/data/{prediction_id}2'
     pred_summary_path = Path(f'{pred_dir}/labels/{img_name.split(".")[0]}.txt')
+    # Check if directory exists
+    if os.path.exists(os.path.dirname(pred_summary_path)):
+        logger.info(f'Files in directory: {os.listdir(os.path.dirname(pred_summary_path))}')
+    else:
+        logger.error(f'Directory does not exist: {os.path.dirname(pred_summary_path)}')
     logger.info(f'YOLOv5 finished. Checking directory: {os.path.dirname(pred_summary_path)}')
     logger.info(f'Files in directory: {os.listdir(os.path.dirname(pred_summary_path))}')
+
+    label_dir = f"static/data/{prediction_id}2/labels"
+    os.makedirs(label_dir, exist_ok=True)
 
     predicted_img_path = Path(f'{pred_dir}/{img_name}')
     predicted_s3_key = f'predictions/{prediction_id}/{img_name}'
@@ -111,3 +120,4 @@ def predict():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8081)
+d
