@@ -89,23 +89,19 @@ services:
     ports:
       - "8443:8443"  # Expose Flask app port
     environment:
-      MONGO_URI: mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=myReplicaSet
-      TELEGRAM_APP_URL: ${TELEGRAM_APP_URL}
-      BUCKET_NAME: ${BUCKET_NAME}
-      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
-
-
+      - MONGO_URI=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=myReplicaSet
+      - TELEGRAM_APP_URL=${TELEGRAM_APP_URL}
+      - BUCKET_NAME=${BUCKET_NAME}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
     volumes:
       - ~/.aws:/root/.aws
       - ./telegram_token.txt:/run/secrets/telegram_token  # Mount the token file securely
       - ./certs/cert.pem:/app/cert.pem  # Mount SSL certs in the container
       - ./certs/key.pem:/app/key.pem
-
     depends_on:
       - yolov5
     networks:
       - mongoCluster
-
 
 networks:
   mongoCluster:

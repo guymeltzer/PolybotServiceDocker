@@ -32,6 +32,7 @@ def predict():
     logger.info(f'prediction: {prediction_id}. start processing')
 
     img_name = request.json.get('imgName')  # Changed to get from JSON body instead of query args
+    logger.info(f'Received imgName: {img_name}')  # Log received imgName
     if not img_name:
         return jsonify({"error": "Missing imgName parameter"}), 400  # Return 400 if imgName is missing
 
@@ -108,7 +109,12 @@ def predict():
             'time': float(prediction_summary['time'])
         }
 
-        return jsonify(json_serializable_summary)
+        return jsonify({
+            'predictions': labels,
+            'prediction_id': prediction_id,
+            'original_img_path': original_img_path,
+            'predicted_img_path': predicted_s3_key
+        })
     else:
         logger.error(f'Label file not found at {pred_summary_path}')
         return jsonify({
@@ -120,4 +126,3 @@ def predict():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8081)
-d

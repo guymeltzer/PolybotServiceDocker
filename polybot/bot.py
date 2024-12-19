@@ -70,15 +70,25 @@ class ObjectDetectionBot:
     def get_yolo5_results(self, img_name):
         """Sends an HTTP request to the yolo5 service and returns the predictions."""
         try:
-            # Send imgName to YOLOv5 service
+            # Log the image name being sent to YOLOv5
+            logger.info(f'Sending imgName to YOLOv5 service: {img_name}')
+            # Send the HTTP request to the YOLOv5 service
+            logger.debug(f'Preparing to send POST request to http://yolov5:8081/predict with payload: {{"imgName": "{img_name}"}}')
             response = requests.post(
                 "http://yolov5:8081/predict",
                 json={"imgName": img_name}  # Send imgName as part of the request payload
             )
+            # Log the HTTP response status code
+            logger.debug(f'Response status code from YOLOv5 service: {response.status_code}')
+            # Ensure the response is successful
             response.raise_for_status()
-            return response.json()  # Returns the JSON response from the yolo5 microservice
+            # Log the successful response data  
+            logger.info(f'Received response from YOLOv5 service: {response.json()}')  # Log the JSON response
+            return response.json()  # Return the JSON response from YOLOv5
+
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error contacting YOLO5 microservice: {e}")
+            logger.error(f"Error contacting YOLOv5 microservice: {e}")
+            logger.debug(f'Error details: {e.__class__} - {str(e)}')
             return None
 
     def handle_message(self, msg):
@@ -89,27 +99,41 @@ class ObjectDetectionBot:
         if self.is_current_msg_photo(msg):
             try:
                 # Step 1: Download the user's photo
+                logger.info('Step 1: Downloading user photo')
                 photo_path = self.download_user_photo(msg)
+                logger.info(f'Photo downloaded to: {photo_path}')
 
                 # Step 2: Upload the image to S3
+                logger.info('Step 2: Uploading photo to S3')
                 image_url = self.upload_to_s3(photo_path)
+                logger.info(f'Photo uploaded to S3: {image_url}')
                 self.send_text(chat_id, "Image uploaded to S3. Processing...")
 
                 # Step 3: Get the image filename (imgName) to pass to YOLOv5
                 img_name = os.path.basename(photo_path)
+                logger.info(f'Image name for YOLOv5: {img_name}')
 
-                # Step 4: Send the image to the yolo5 service
+                # Step 4: Send the image to the YOLOv5 service
+                logger.info('Step 4: Sending image to YOLOv5 service')
                 yolo_results = self.get_yolo5_results(img_name)
+                logger.info(f'YOLOv5 results: {yolo_results}')
 
-                if yolo_results:
+                if yolo_results and 'labels' in yolo_results:
                     # Step 5: Send the prediction results back to the user
-                    results_text = f"Detected objects: {', '.join(yolo_results['predictions'])}"
+                    logger.info('Step 5: Sending prediction results to user')
+                    detected_objects = [label['class'] for label in yolo_results['labels']]
+                    if detected_objects:
+                        results_text = f"Detected objects: {', '.join(detected_objects)}"
+                    else:
+                        results_text = "No objects detected."
                     self.send_text(chat_id, results_text)
                 else:
+                    logger.error('YOLOv5 service returned no results or incorrect response format')
                     self.send_text(chat_id, "There was an error processing the image.")
 
             except Exception as e:
                 logger.error(f"Error processing image: {e}")
                 self.send_text(chat_id, "There was an error processing the image.")
         else:
+            logger.info('Message does not contain a photo')
             self.send_text(chat_id, "Please send a photo with a valid caption.")

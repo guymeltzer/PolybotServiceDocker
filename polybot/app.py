@@ -3,7 +3,10 @@ from flask import request
 import os
 import boto3
 from bot import ObjectDetectionBot
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 app = flask.Flask(__name__)
 
 
@@ -26,6 +29,7 @@ def index():
 @app.route(f'/{TELEGRAM_TOKEN}/', methods=['POST'])
 def webhook():
     req = request.get_json()
+    logger.info(f'Received webhook request: {req}')  # Log the received request
     bot.handle_message(req['message'])
     return 'Ok'
 
