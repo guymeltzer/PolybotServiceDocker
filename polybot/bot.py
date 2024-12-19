@@ -68,9 +68,6 @@ class ObjectDetectionBot:
         return s3_url
 
     def get_yolo5_results(self, img_name):
-        if not isinstance(img_name, str) or not img_name.endswith(('.jpg', '.png')):
-            logger.error(f"Invalid image name: {img_name}")
-            return None
         """Sends an HTTP request to the yolo5 service and returns the predictions."""
         try:
             # Send imgName to YOLOv5 service
