@@ -14,7 +14,7 @@ images_bucket = os.environ['BUCKET_NAME']
 mongo_uri = os.environ['MONGO_URI']  # MongoDB connection URI
 db_name = os.environ.get('MONGO_DB', 'default_db')  # Default to 'default_db' if no environment variable is set
 collection_name = os.environ.get('MONGO_COLLECTION', 'predictions')  # Default collection name
-
+#
 s3_client = boto3.client('s3')
 mongo_client = MongoClient(mongo_uri)
 db = mongo_client[db_name]
