@@ -67,7 +67,9 @@ services:
               {_id: 2, host: \"mongo3:27017\"}
             ]
           })
-        '"
+        ';
+        tail -f /dev/null"
+  
 
   yolov5:
     image: guymeltzer/yolo5:1.0.22
