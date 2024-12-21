@@ -6,8 +6,8 @@ on:
       - main
 
 env:
-  EC2_PUBLIC_IP: X.X.X.X  # TODO replace to your EC2 instance public IP
-
+  EC2_PUBLIC_IP: 13.61.18.158
+#
 jobs:
   PolybotBuild:
     runs-on: ubuntu-latest
