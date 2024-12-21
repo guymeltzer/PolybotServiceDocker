@@ -32,6 +32,6 @@ def webhook():
     logger.info(f'Received webhook request: {req}')  # Log the received request
     bot.handle_message(req['message'])
     return 'Ok'
-
+#
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8443)
