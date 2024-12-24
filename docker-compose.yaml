@@ -68,7 +68,7 @@ services:
             ]
           })
         ';
-        exit 0"
+        tail -f /dev/null"
   
 
   yolov5:

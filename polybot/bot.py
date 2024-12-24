@@ -130,7 +130,7 @@ class ObjectDetectionBot:
                 else:
                     logger.error('YOLOv5 service returned no results or incorrect response format')
                     self.send_text(chat_id, "There was an error processing the image.")
-
+#
             except Exception as e:
                 logger.error(f"Error processing image: {e}")
                 self.send_text(chat_id, "There was an error processing the image.")

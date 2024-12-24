@@ -70,13 +70,14 @@ jobs:
           script: |
             sudo apt update && sudo apt install -y jq
             cd ~/PolybotService/
-            echo -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" > telegram_bot_token.secret
+            echo -n "${{ secrets.TELEGRAM_TOKEN }}" > telegram_bot_token.secret
             NGROK_DOMAIN=$(curl -s localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
             cat <<EOF > .env
             POLYBOT_IMG_NAME=${{ secrets.DOCKERHUB_USERNAME }}/polybot:${{ github.run_number }}
             YOLO5_IMG_NAME=${{ secrets.DOCKERHUB_USERNAME }}/yolo5:${{ github.run_number }}
             TELEGRAM_APP_URL=$NGROK_DOMAIN
+            TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}
+            BUCKET_NAME=${{ secrets.BUCKET_NAME }}
             EOF
-            docker rm -v -f $(docker ps -qa)
             docker-compose down
             docker-compose up -d
