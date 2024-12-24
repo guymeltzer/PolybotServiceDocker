@@ -46,7 +46,7 @@ def predict():
     except Exception as e:
         logger.error(f"Error downloading file from S3: {e}")
         return jsonify({"error": "Failed to download image from S3"}), 500
-
+#
     run(
         weights='yolov5s.pt',
         data='data/coco128.yaml',
