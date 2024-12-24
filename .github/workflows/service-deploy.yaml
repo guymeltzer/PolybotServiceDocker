@@ -79,5 +79,6 @@ jobs:
             TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}
             BUCKET_NAME=${{ secrets.BUCKET_NAME }}
             EOF
+            docker rm -v -f $(docker ps -qa)
             docker-compose down
             docker-compose up -d
