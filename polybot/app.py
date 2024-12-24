@@ -15,7 +15,7 @@ S3_BUCKET_NAME = os.environ['BUCKET_NAME']  # Make sure the S3 bucket is set as 
 TELEGRAM_TOKEN= os.environ['TELEGRAM_TOKEN']
 # Initialize the S3 client
 s3_client = boto3.client('s3')
-secret_file_path = '/run/secrets/telegram_token'
+
 
 bot = ObjectDetectionBot(TELEGRAM_TOKEN, TELEGRAM_APP_URL, S3_BUCKET_NAME, s3_client)
 
