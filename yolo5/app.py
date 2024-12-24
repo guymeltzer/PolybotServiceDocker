@@ -55,7 +55,7 @@ def predict():
         name=prediction_id,
         save_txt=True
     )
-#
+
     pred_dir = f'static/data/{prediction_id}2'
     pred_summary_path = Path(f'{pred_dir}/labels/{img_name.split(".")[0]}.txt')
     # Check if directory exists
