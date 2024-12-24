@@ -68,7 +68,7 @@ services:
             ]
           })
         ';
-        tail -f /dev/null"
+        "
 
   yolov5:
     image: guymeltzer/yolo5:1.0.22
