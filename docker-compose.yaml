@@ -85,7 +85,7 @@ services:
       - mongoCluster
 
   polybot-service:
-    image: guymeltzer/polybot:1.0.30
+    image: guymeltzer/polybot:1.0.37
     container_name: polybot-service
     platform: linux/amd64  # Specify the platform
     ports:
