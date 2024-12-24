@@ -87,7 +87,7 @@ def predict():
             } for l in labels]
 
         logger.info(f'prediction: {prediction_id}/{original_img_path}. prediction summary:\n\n{labels}')
-
+#
         # Format the response as needed
         prediction_summary = {
             '_id': str(uuid.uuid4()),  # Unique prediction ID
