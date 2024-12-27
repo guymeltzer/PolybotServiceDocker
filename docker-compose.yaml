@@ -71,7 +71,7 @@ services:
         "
 
   yolov5:
-    image: guymeltzer/yolo5:1.0.23
+    image: guymeltzer/yolo5:1.0.22
     container_name: yolov5-app
     ports:
       - "8081:8081"
