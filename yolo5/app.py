@@ -126,7 +126,7 @@ def predict(): # Create predict method.
             'original_img_path': original_img_path # Path to the original image.
         }), 404  # Return 404 to client
 
-
+#
 # --- Main Execution ---
 if __name__ == "__main__": # Check if file is main.
     app.run(host='0.0.0.0', port=8081) # Run the app on all available interfaces, port 8081.
