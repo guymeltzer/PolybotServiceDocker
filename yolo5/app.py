@@ -9,120 +9,124 @@ import os
 import boto3
 from pymongo import MongoClient
 
-yolo_endpoint = "http://yolov5:8081/predict"
-images_bucket = os.environ['BUCKET_NAME']
-mongo_uri = os.environ['MONGO_URI']  # MongoDB connection URI
-db_name = os.environ.get('MONGO_DB', 'default_db')  # Default to 'default_db' if no environment variable is set
-collection_name = os.environ.get('MONGO_COLLECTION', 'predictions')  # Default collection name
+yolo_endpoint = "http://yolov5:8081/predict"  # The endpoint for sending requests to this service itself, can remove.
+images_bucket = os.environ['BUCKET_NAME'] # Load the S3 bucket name from an environment variable.
+mongo_uri = os.environ['MONGO_URI']  # MongoDB connection URI from environment variable.
+db_name = os.environ.get('MONGO_DB', 'default_db')  # Get MongoDB database name from environment, default to 'default_db' if not set.
+collection_name = os.environ.get('MONGO_COLLECTION', 'predictions')  # Get MongoDB collection name from envir
 #
-s3_client = boto3.client('s3')
-mongo_client = MongoClient(mongo_uri)
-db = mongo_client[db_name]
-collection = db[collection_name]
+s3_client = boto3.client('s3')  # Create an S3 client instance
+mongo_client = MongoClient(mongo_uri) # Create a MongoDB client
+db = mongo_client[db_name] # Connect to a database using the name from the env variable
+collection = db[collection_name]  # Select the appropriate collection
 
+# --- Load Class Names ---
 with open("data/coco128.yaml", "r") as stream:
     names = yaml.safe_load(stream)['names']
 
-app = Flask(__name__)
+app = Flask(__name__) # Create Flask application instance
 
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    prediction_id = str(uuid.uuid4())
-    logger.info(f'prediction: {prediction_id}. start processing')
+# --- Define Prediction Route ---
+@app.route('/predict', methods=['POST']) # Define /predict endpoint that can only handle POST requests.
+def predict(): # Create predict method.
+    prediction_id = str(uuid.uuid4())  # Generate a unique ID for this prediction
+    logger.info(f'prediction: {prediction_id}. start processing')  # Log that processing for this prediction has begun
 
-    img_name = request.json.get('imgName')  # Changed to get from JSON body instead of query args
+    img_name = request.json.get('imgName')  # Extract image name from the request body
     logger.info(f'Received imgName: {img_name}')  # Log received imgName
-    if not img_name:
-        return jsonify({"error": "Missing imgName parameter"}), 400  # Return 400 if imgName is missing
+    if not img_name: # Check if an image name was provided
+        return jsonify({"error": "Missing imgName parameter"}), 400  # Return 400 if imgName is missing, along with JSON error msg
 
-    original_img_path = f'static/data/{prediction_id}/{img_name}'
-    os.makedirs(os.path.dirname(original_img_path), exist_ok=True)
+    original_img_path = f'static/data/{prediction_id}/{img_name}' # Constructs the full path where we will download the image locally, using the prediction id.
+    os.makedirs(os.path.dirname(original_img_path), exist_ok=True) # Ensure the directory for the path exists.
 
-    try:
+    try: # Begin Try Block to Catch Errors
         # Download image from S3
-        s3_client.download_file(images_bucket, img_name, original_img_path)
-        logger.info(f'prediction: {prediction_id}/{original_img_path}. Download img completed')
-    except Exception as e:
-        logger.error(f"Error downloading file from S3: {e}")
-        return jsonify({"error": "Failed to download image from S3"}), 500
-#
-    run(
-        weights='yolov5s.pt',
-        data='data/coco128.yaml',
-        source=original_img_path,
-        project='static/data',
-        name=prediction_id,
-        save_txt=True
+        s3_client.download_file(images_bucket, img_name, original_img_path) # Download the file to the local directory using s3_client
+        logger.info(f'prediction: {prediction_id}/{original_img_path}. Download img completed') # Log that the file was downloaded
+    except Exception as e: # Catch the exception.
+        logger.error(f"Error downloading file from S3: {e}") # Log the exception
+        return jsonify({"error": "Failed to download image from S3"}), 500  # Return 500 Error and send JSON to client
+
+    # --- Run Object Detection ---
+    run( # Run YOLOv5 object detection script with configuration
+        weights='yolov5s.pt', # Weights to use
+        data='data/coco128.yaml', # Dataset configuration file
+        source=original_img_path, # Location of input image
+        project='static/data', # Where the results will be saved
+        name=prediction_id, # Set the name to prediction ID
+        save_txt=True # Create the labels in .txt format.
     )
 
-    pred_dir = f'static/data/{prediction_id}2'
-    pred_summary_path = Path(f'{pred_dir}/labels/{img_name.split(".")[0]}.txt')
+    # --- Post-Processing ---
+    pred_dir = f'static/data/{prediction_id}2' # Construct the path to the prediction dir, since we can't control that from the run script
+    pred_summary_path = Path(f'{pred_dir}/labels/{img_name.split(".")[0]}.txt') # Construct the predicted labels text file path.
     # Check if directory exists
-    if os.path.exists(os.path.dirname(pred_summary_path)):
-        logger.info(f'Files in directory: {os.listdir(os.path.dirname(pred_summary_path))}')
+    if os.path.exists(os.path.dirname(pred_summary_path)): # Check if the directory where output files are stored exists.
+        logger.info(f'Files in directory: {os.listdir(os.path.dirname(pred_summary_path))}') # Log output directory files.
     else:
-        logger.error(f'Directory does not exist: {os.path.dirname(pred_summary_path)}')
-    logger.info(f'YOLOv5 finished. Checking directory: {os.path.dirname(pred_summary_path)}')
-    logger.info(f'Files in directory: {os.listdir(os.path.dirname(pred_summary_path))}')
+        logger.error(f'Directory does not exist: {os.path.dirname(pred_summary_path)}')  # Log if directory does not exist.
+    logger.info(f'YOLOv5 finished. Checking directory: {os.path.dirname(pred_summary_path)}') # Logging for debugging.
+    logger.info(f'Files in directory: {os.listdir(os.path.dirname(pred_summary_path))}') # Logging output directory files.
 
-    label_dir = f"static/data/{prediction_id}2/labels"
-    os.makedirs(label_dir, exist_ok=True)
+    label_dir = f"static/data/{prediction_id}2/labels" # Label output dir.
+    os.makedirs(label_dir, exist_ok=True) # Ensure it exists.
 
-    predicted_img_path = Path(f'{pred_dir}/{img_name}')
-    predicted_s3_key = f'predictions/{prediction_id}/{img_name}'
-    s3_client.upload_file(str(predicted_img_path), images_bucket, predicted_s3_key)
+    predicted_img_path = Path(f'{pred_dir}/{img_name}') # Construct output path
+    predicted_s3_key = f'predictions/{prediction_id}/{img_name}' # Construct s3 path to upload the file to
+    s3_client.upload_file(str(predicted_img_path), images_bucket, predicted_s3_key)  # Upload predicted image to s3
+    logger.info(f"Looking for label file at: {pred_summary_path}") # Debugging log to find the label file.
+    if pred_summary_path.exists(): # Check if the label file exists.
+        with open(pred_summary_path) as f: # Open the text file generated by the yolov5 output
+            labels = f.read().splitlines() # Read the contents, split by each line
+            labels = [line.split(' ') for line in labels] # Split each line by space to get bounding box details.
+            labels = [{ # Create label dictionary.
+                'class': names[int(l[0])], # Class name for label.
+                'cx': float(l[1]), # Center x position.
+                'cy': float(l[2]), # Center y position.
+                'width': float(l[3]), # Width of box
+                'height': float(l[4]), # Height of box
+            } for l in labels] # Add each label to labels list.
 
-    logger.info(f"Looking for label file at: {pred_summary_path}")
-    if pred_summary_path.exists():
-        with open(pred_summary_path) as f:
-            labels = f.read().splitlines()
-            labels = [line.split(' ') for line in labels]
-            labels = [{
-                'class': names[int(l[0])],
-                'cx': float(l[1]),
-                'cy': float(l[2]),
-                'width': float(l[3]),
-                'height': float(l[4]),
-            } for l in labels]
+        logger.info(f'prediction: {prediction_id}/{original_img_path}. prediction summary:\n\n{labels}') # Log each label information.
 
-        logger.info(f'prediction: {prediction_id}/{original_img_path}. prediction summary:\n\n{labels}')
-#
         # Format the response as needed
-        prediction_summary = {
-            '_id': str(uuid.uuid4()),  # Unique prediction ID
-            'labels': labels,
-            'image_paths': {
-                'original': original_img_path,
-                'predicted': predicted_s3_key
+        prediction_summary = { # Generate a python dictionary to be added to MongoDB
+            '_id': str(uuid.uuid4()),  # Unique prediction ID.
+            'labels': labels, # Add labels list.
+            'image_paths': { # Add path information to be saved to MongoDB
+                'original': original_img_path, # Path to original img.
+                'predicted': predicted_s3_key # Path to predicted image in S3.
             },
-            'prediction_id': prediction_id,
-            'time': time.time()
+            'prediction_id': prediction_id,  # Add prediction_id to the object.
+            'time': time.time()  # Add current time.
         }
 
         # Insert summary into MongoDB
-        collection.insert_one(prediction_summary)
+        collection.insert_one(prediction_summary)  # Insert prediction summary into MongoDB
 
-        json_serializable_summary = {
-            **prediction_summary,
+        json_serializable_summary = { # Prepare the object to be returned as response to the client.
+            **prediction_summary, # Merge all the keys from the prediction_summary object
             '_id': str(prediction_summary['_id']),  # Convert ObjectId to string
-            'time': float(prediction_summary['time'])
+            'time': float(prediction_summary['time']) # Convert time from datetime object to float
         }
 
-        return jsonify({
-            'predictions': labels,
-            'prediction_id': prediction_id,
-            'original_img_path': original_img_path,
-            'predicted_img_path': predicted_s3_key
+        return jsonify({ # Return the JSON response for the client.
+            'predictions': labels, # Add predictions
+            'prediction_id': prediction_id, # Add prediction_id
+            'original_img_path': original_img_path, # Add path to the original image
+            'predicted_img_path': predicted_s3_key # Add path to the predicted image in S3.
         })
-    else:
-        logger.error(f'Label file not found at {pred_summary_path}')
-        return jsonify({
-            'error': 'Prediction result not found',
-            'prediction_id': prediction_id,
-            'original_img_path': original_img_path
-        }), 404
+    else: # If the label file was not created for some reason.
+        logger.error(f'Label file not found at {pred_summary_path}') # Log that the label file is not found.
+        return jsonify({  # Return a JSON response to the client.
+            'error': 'Prediction result not found', # Error message for client.
+            'prediction_id': prediction_id, # Prediction ID.
+            'original_img_path': original_img_path # Path to the original image.
+        }), 404  # Return 404 to client
 
 
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8081)
+# --- Main Execution ---
+if __name__ == "__main__": # Check if file is main.
+    app.run(host='0.0.0.0', port=8081) # Run the app on all available interfaces, port 8081.
